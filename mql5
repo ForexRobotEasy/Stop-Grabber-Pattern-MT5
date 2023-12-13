@@ -1,0 +1,99 @@
+mql5
+//+------------------------------------------------------------------+
+//|                 Stop Grabber Pattern MT5                          |
+//|              Developer's Site: forexroboteasy.com                 |
+//|            Development by: Forex Robot Easy Team                  |
+//+------------------------------------------------------------------+
+
+// External parameters
+input int Fast_EMA = 9;       // Fast EMA parameter
+input int Slow_EMA = 21;      // Slow EMA parameter
+
+// Global variables
+int signalBar;               // Signal bar index
+bool buySignal;              // Buy signal flag
+bool sellSignal;             // Sell signal flag
+
+//+------------------------------------------------------------------+
+//|                             OnInit                               |
+//+------------------------------------------------------------------+
+void OnInit()
+{
+   // Initialize global variables
+   signalBar = 0;
+   buySignal = false;
+   sellSignal = false;
+}
+
+//+------------------------------------------------------------------+
+//|                   Custom Indicator Function                       |
+//+------------------------------------------------------------------+
+void CustomIndicator()
+{
+   // Calculate EMA values
+   double fastEMA = iMA(NULL, 0, Fast_EMA, 0, MODE_EMA, PRICE_CLOSE, signalBar);
+   double slowEMA = iMA(NULL, 0, Slow_EMA, 0, MODE_EMA, PRICE_CLOSE, signalBar);
+
+   // Check for buy signal
+   if (fastEMA > slowEMA && signalBar > 0 && Low[signalBar] < Low[signalBar - 1])
+   {
+      buySignal = true;
+      sellSignal = false;
+   }
+   // Check for sell signal
+   else if (fastEMA < slowEMA && signalBar > 0 && High[signalBar] > High[signalBar - 1])
+   {
+      buySignal = false;
+      sellSignal = true;
+   }
+}
+
+//+------------------------------------------------------------------+
+//|                       Trading Functions                           |
+//+------------------------------------------------------------------+
+void GenerateSignals()
+{
+   // Call custom indicator function
+   CustomIndicator();
+
+   // Check for buy signal
+   if (buySignal)
+   {
+      // Place market buy order at the close of the signal bar
+      OrderSend(Symbol(), OP_BUY, 0.01, Ask, 0, 0, 0, 'Buy Order', 0, 0, clrGreen);
+      
+      // Set stop loss for buy trades at the low of the signal bar
+      double stopLoss = Low[signalBar];
+      OrderModify(OrderTicket(), OrderOpenPrice(), stopLoss, OrderTakeProfit(), 0, clrGreen);
+      
+      // Set take profit target for buy trades at the first swing high
+      double takeProfit = iHighest(NULL, 0, MODE_HIGH, signalBar);
+      OrderModify(OrderTicket(), OrderOpenPrice(), OrderStopLoss(), takeProfit, 0, clrGreen);
+   }
+   // Check for sell signal
+   else if (sellSignal)
+   {
+      // Place market sell order at the close of the signal bar
+      OrderSend(Symbol(), OP_SELL, 0.01, Bid, 0, 0, 0, 'Sell Order', 0, 0, clrRed);
+      
+      // Set stop loss for sell trades at the high of the signal bar
+      double stopLoss = High[signalBar];
+      OrderModify(OrderTicket(), OrderOpenPrice(), stopLoss, OrderTakeProfit(), 0, clrRed);
+      
+      // Set take profit target for sell trades at the first swing low
+      double takeProfit = iLowest(NULL, 0, MODE_LOW, signalBar);
+      OrderModify(OrderTicket(), OrderOpenPrice(), OrderStopLoss(), takeProfit, 0, clrRed);
+   }
+}
+
+//+------------------------------------------------------------------+
+//|                          OnTick Function                          |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   // Update signal bar index
+   signalBar = Bars - 1;
+
+   // Generate signals
+   GenerateSignals();
+}
